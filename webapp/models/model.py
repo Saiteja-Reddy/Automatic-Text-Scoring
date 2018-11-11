@@ -24,7 +24,7 @@ MAX_NB_WORDS=4000
 MAX_SEQUENCE_LENGTH=500
 DELTA=20
 
-fp1=open("/Users/saiteja/playground/IRE/major_project/webapp/models/glove.6B.300d.txt","r")
+fp1=open("/Users/saiteja/playground/IRE/major_project/github/webapp/models/glove.6B.300d.txt","r")
 glove_emb={}
 for line in fp1:
 	temp=line.split(" ")
@@ -144,7 +144,7 @@ def init(essay_type = '4'):
 	texts=[]
 	originals = []
 
-	fp=open("/Users/saiteja/playground/IRE/major_project/webapp/models/training_set_rel3.tsv",'r', encoding="ascii", errors="ignore")
+	fp=open("/Users/saiteja/playground/IRE/major_project/github/webapp/models/training_set_rel3.tsv",'r', encoding="ascii", errors="ignore")
 	fp.readline()
 	sentences=[]
 	doctovec=[]
@@ -177,7 +177,7 @@ def init(essay_type = '4'):
 	earlystopping = EarlyStopping(monitor="val_mean_squared_error", patience=5)
 	sf_1 = SKIPFLOW(embedding_matrix, vocab_size ,lstm_dim=50, lr=2e-4, lr_decay=2e-6, k=4, eta=13, delta=50, activation="relu", seed=None)
 
-	sf_1.load_weights("/Users/saiteja/playground/IRE/major_project/webapp/models/weights/" + str(essay_type) + "_weights.h5")
+	sf_1.load_weights("/Users/saiteja/playground/IRE/major_project/github/webapp/models/weights/" + str(essay_type) + "_weights.h5")
 	# print("Loaded Model from disk")
 
 
