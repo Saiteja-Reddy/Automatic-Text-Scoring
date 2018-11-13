@@ -48,34 +48,25 @@ def predict_helper(intext, model, graph, glove_emb, tokenizer, range_min, range_
 	labels=[]
 	sentences=[]
 
-	additional_features=[]
 
 	texts.append(intext)
 	line=intext.strip()
 	sentences.append(nltk.tokenize.word_tokenize(line))	
 
-	for i in texts:
-		additional_features.append(feature_getter(i))	
-
-	doctovec=[]
-	additional_features=np.asarray(additional_features)
 	for i in sentences:
 		temp1=np.zeros((1, EMBEDDING_DIM))
 		for w in i:
 			if(w in glove_emb):
 				temp1+=glove_emb[w]
 		temp1/=len(i)
-		doctovec.append(temp1.reshape(300,))		
 
-	doctovec=np.asarray(doctovec)
-
-	sequences=tokenizer.texts_to_sequences(texts) #returns list of sequences
-	word_index=tokenizer.word_index #dictionary mapping
+	sequences=tokenizer.texts_to_sequences(texts)
+	word_index=tokenizer.word_index 
 
 	data = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
 
 	print("Predicting: .... ")
-	y_pred=model.predict([data,additional_features,doctovec])
+	y_pred=model.predict([data])
 
 	y_pred_fin =[int(round(a*(range_max-range_min)+range_min)) for a in y_pred.reshape(1).tolist()]
 	print("Prediction: " , y_pred_fin[0])

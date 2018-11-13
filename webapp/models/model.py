@@ -2,8 +2,12 @@ import  keras.layers  as  klayers
 from keras.preprocessing.text import text_to_word_sequence
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, LSTM, Input, Embedding, GlobalAveragePooling1D, Concatenate, Activation, Lambda, BatchNormalization, Convolution1D, Dropout
+from keras.preprocessing.text import Tokenizer
+import numpy as np
+import nltk
+from quadratic_weighted_kappa import QWK
+from sklearn.metrics import cohen_kappa_score
 from keras.models import Model
-from keras.models import load_model
 from keras import backend as K
 from keras.engine.topology import Layer, InputSpec
 from keras.optimizers import Adam
@@ -11,13 +15,7 @@ from keras.callbacks import EarlyStopping
 from keras import regularizers
 from keras import initializers
 from scipy import stats
-from keras.preprocessing.text import Tokenizer
-import numpy as np
-from gensim.models import Word2Vec,doc2vec
-import nltk
 import tensorflow as tf
-
-from additional_feature_getter import feature_getter
 
 EMBEDDING_DIM=300
 MAX_NB_WORDS=4000
@@ -41,19 +39,6 @@ class Neural_Tensor_layer(Layer):
 			kwargs['input_shape']=(self.input_dim,)
 		super(Neural_Tensor_layer,self).__init__(**kwargs)
 
-	def build(self,input_shape):
-		mean=0.0
-		std=1.0
-		k=self.output_dim
-		d=self.input_dim
-		##truncnorm generate continuous random numbers in given range
-		W_val=stats.truncnorm.rvs(-2 * std, 2 * std, loc=mean, scale=std, size=(k,d,d))
-		V_val=stats.truncnorm.rvs(-2 * std, 2 * std, loc=mean, scale=std, size=(2*d,k))
-		self.W=K.variable(W_val)
-		self.V=K.variable(V_val)
-		self.b=K.zeros((self.input_dim,))
-		self.trainable_weights=[self.W,self.V,self.b]
-
 	def call(self,inputs,mask=None):
 		e1=inputs[0]
 		e2=inputs[1]
@@ -72,32 +57,42 @@ class Neural_Tensor_layer(Layer):
 		result=K.tanh(K.reshape(K.concatenate(bilinear_tensor_products,axis=0),(batch_size,k))+feed_forward)
 
 		return result
+    
+	def build(self,input_shape):
+		mean=0.0
+		std=1.0
+		k=self.output_dim
+		d=self.input_dim
+		W_val=stats.truncnorm.rvs(-2 * std, 2 * std, loc=mean, scale=std, size=(k,d,d))
+		V_val=stats.truncnorm.rvs(-2 * std, 2 * std, loc=mean, scale=std, size=(2*d,k))
+		self.W=K.variable(W_val)
+		self.V=K.variable(V_val)
+		self.b=K.zeros((self.input_dim,))
+		self.trainable_weights=[self.W,self.V,self.b]    
 
 	def compute_output_shape(self, input_shape):
 		batch_size=input_shape[0][0]
 		return(batch_size,self.output_dim)
 
-class Temporal_Mean_Pooling(Layer): # conversion from (samples,timesteps,features) to (samples,features)
+class Temporal_Mean_Pooling(Layer):
 	def __init__(self, **kwargs):
 		super(Temporal_Mean_Pooling,self).__init__(**kwargs)
-		# masked values in x (number_of_samples,time)
 		self.supports_masking=True
-		# Specifies number of dimensions to each layer
 		self.input_spec=InputSpec(ndim=3)
-
+        
 	def call(self,x,mask=None):
 		if mask is None:
 			mask=K.mean(K.ones_like(x),axis=-1)
 
 		mask=K.cast(mask,K.floatx())
-				#dimension size single vec/number of samples
-		return K.sum(x,axis=-2)/K.sum(mask,axis=-1,keepdims=True)
+		return K.sum(x,axis=-2)/K.sum(mask,axis=-1,keepdims=True)        
 
 	def compute_mask(self,input,mask):
 		return None
+    
+    
 	def compute_output_shape(self,input_shape):
-		return (input_shape[0],input_shape[2])		
-
+		return (input_shape[0],input_shape[2])
 
 def SKIPFLOW(embedding_matrix, vocab_size, lstm_dim=50, lr=1e-4, lr_decay=1e-6, k=5, eta=3, delta=50, activation="relu", maxlen=MAX_SEQUENCE_LENGTH, seed=None):
                                 
@@ -111,13 +106,12 @@ def SKIPFLOW(embedding_matrix, vocab_size, lstm_dim=50, lr=1e-4, lr_decay=1e-6, 
 								trainable=False)
 	e = Input(name='essay',shape=(maxlen,))
 	trad_feats=Input(shape=(7,))
-	dtov=Input(shape=(300,))
 	embed = embedding_layer(e)
-	side_embed = side_embedding_layer(e)
-	lstm_layer=LSTM(lstm_dim,return_sequences=True)
 	hidden_states=lstm_layer(embed)
-	side_hidden_states=lstm_layer(side_embed)
 	htm=Temporal_Mean_Pooling()(hidden_states)
+	side_embed = side_embedding_layer(e)
+	side_hidden_states=lstm_layer(side_embed)	
+	lstm_layer=LSTM(lstm_dim,return_sequences=True)
 	tensor_layer=Neural_Tensor_layer(output_dim=k,input_dim=lstm_dim)
 	pairs = [((eta + i * delta) % maxlen, (eta + i * delta + delta) % maxlen) for i in range(maxlen // delta)]
 	hidden_pairs = [ (Lambda(lambda t: t[:, p[0], :])(side_hidden_states), Lambda(lambda t: t[:, p[1], :])(side_hidden_states)) for p in pairs]
@@ -161,7 +155,7 @@ def init(essay_type = '4'):
 
 	tokenizer=Tokenizer() #num_words=MAX_NB_WORDS) #limits vocabulory size
 	tokenizer.fit_on_texts(texts)
-	sequences=tokenizer.texts_to_sequences(texts) #returns list of sequences
+	sequences=tokenizer.texts_to_sequences(texts) 
 	word_index=tokenizer.word_index #dictionary mapping
 
 	# print('Found %s unique tokens.' % len(word_index)) 
